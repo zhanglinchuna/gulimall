@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 //import org.apache.shiro.authz.annotation.RequiresPermissions;
+import com.atguigu.gulimall.member.feign.CouponFeignService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,8 +29,20 @@ import com.atguigu.common.utils.R;
 @RestController
 @RequestMapping("member/member")
 public class MemberController {
+
+    @Autowired
+    private CouponFeignService couponFeignService;
     @Autowired
     private MemberService memberService;
+
+    /**
+     * Feign远程调用测试
+     * @return
+     */
+    @RequestMapping("/getCouponFeign")
+    public R getCouponFeign(){
+        return couponFeignService.getCouponAll();
+    }
 
     /**
      * 列表

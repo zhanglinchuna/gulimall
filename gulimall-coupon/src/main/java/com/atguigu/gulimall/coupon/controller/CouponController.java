@@ -31,6 +31,15 @@ public class CouponController {
     @Autowired
     private CouponService couponService;
 
+    @RequestMapping("/getCouponAll")
+    public R getCouponAll() {
+
+        CouponEntity couponEntity = new CouponEntity();
+        couponEntity.setCouponName("满100l立减50");
+
+        return R.ok().put("coupon", couponEntity);
+    }
+
     /**
      * 列表
      */
