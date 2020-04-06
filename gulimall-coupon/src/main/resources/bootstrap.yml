@@ -5,3 +5,17 @@ spring:
     nacos:
       config:
         server-addr: 127.0.0.1:8848
+        file-extension: yml
+        namespace: 5411d4ac-1608-4bc2-b6f7-5f35a0983106
+        extension-configs[0]:
+          data-id: SpringConfig.yml
+          group: dev
+          refresh: true # 配置修改后是否自动更新
+        extension-configs[1]:
+          data-id: MyBatis.yml
+          group: dev
+          refresh: true
+        extension-configs[2]:
+          data-id: Servlet.yml
+          group: dev
+          refresh: true
