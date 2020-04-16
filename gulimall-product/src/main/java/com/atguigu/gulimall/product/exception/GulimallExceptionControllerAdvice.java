@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * 统一异常处理
  */
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.atguigu.gulimall.product.controller")
 public class GulimallExceptionControllerAdvice {
 
     @ExceptionHandler(value = MethodArgumentNotValidException.class)
