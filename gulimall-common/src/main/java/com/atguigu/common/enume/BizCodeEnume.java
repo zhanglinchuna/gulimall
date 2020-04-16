@@ -1,4 +1,4 @@
-package com.atguigu.common.exception;
+package com.atguigu.common.enume;
 
 /***
  * 错误码和错误信息定义类
@@ -16,6 +16,7 @@ package com.atguigu.common.exception;
  *
  */
 public enum BizCodeEnume {
+
     UNKNOW_EXCEPTION(10000,"系统未知异常"),
     VAILD_EXCEPTION(10001,"参数格式校验失败");
 

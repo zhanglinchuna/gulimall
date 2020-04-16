@@ -4,7 +4,7 @@ spring:
       access-key: LTAI4FebH6puhuUSEFzmTF6o
       secret-key: LtdMelM8abzCZPb1OIplpPgnG7IQUO
       oss:
-        endpoint: http://oss-cn-shanghai.aliyuncs.com
+        endpoint: oss-cn-shanghai.aliyuncs.com
         bucket: gulimall-zlc
     nacos:
       discovery:
