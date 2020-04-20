@@ -30,7 +30,7 @@ public class BrandEntity implements Serializable {
     /**
      * 品牌id
      */
-    @NotNull(message = "修改必须指定品牌id", groups = {UpdateGroup.class})
+    @NotNull(message = "修改必须指定品牌id", groups = {UpdateStatusGroup.class,UpdateGroup.class})
     @Null(message = "新增不能指定id", groups = {AddGroup.class})
     @TableId
     private Long brandId;
@@ -59,7 +59,7 @@ public class BrandEntity implements Serializable {
      * 检索首字母
      */
     @NotEmpty(groups = {AddGroup.class})
-    @Pattern(regexp = "/^[a-zA-Z]$/", message = "检索首字母必须是英文字母 且 只能有一个英文字母", groups = {AddGroup.class, UpdateGroup.class})
+    @Pattern(regexp = "^[a-zA-Z]$", message = "检索首字母必须是英文字母 且 只能有一个英文字母", groups = {AddGroup.class, UpdateGroup.class})
     private String firstLetter;
     /**
      * 排序
