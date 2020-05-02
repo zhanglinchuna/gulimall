@@ -3,7 +3,7 @@ package com.atguigu.gulimall.product.vo;
 import lombok.Data;
 
 @Data
-public class AttrRespVO extends AttrVO {
+public class AttrRespVo extends AttrVo {
 
     /**
      * 所属分类名字

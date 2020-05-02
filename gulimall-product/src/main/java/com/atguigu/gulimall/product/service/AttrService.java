@@ -1,8 +1,8 @@
 package com.atguigu.gulimall.product.service;
 
-import com.atguigu.gulimall.product.vo.AttrGroupRelationVO;
-import com.atguigu.gulimall.product.vo.AttrRespVO;
-import com.atguigu.gulimall.product.vo.AttrVO;
+import com.atguigu.gulimall.product.vo.AttrGroupRelationVo;
+import com.atguigu.gulimall.product.vo.AttrRespVo;
+import com.atguigu.gulimall.product.vo.AttrVo;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.atguigu.common.utils.PageUtils;
 import com.atguigu.gulimall.product.entity.AttrEntity;
@@ -21,16 +21,18 @@ public interface AttrService extends IService<AttrEntity> {
 
     PageUtils queryPage(Map<String, Object> params);
 
-    void saveDetail(AttrVO attr);
+    void saveDetail(AttrVo attr);
 
     PageUtils queryAttrBasePage(Map<String, Object> params, Long catelogId, String attrType);
 
-    AttrRespVO getByInfo(Long attrId);
+    AttrRespVo getByInfo(Long attrId);
 
-    void updateByInfo(AttrRespVO respVO);
+    void updateByInfo(AttrRespVo respVO);
 
     List<AttrEntity> getAttrRelation(Long attrgroupId);
 
-    void deleteAttrRelation(AttrGroupRelationVO[] vos);
+    void deleteAttrRelation(AttrGroupRelationVo[] vos);
+
+    PageUtils getAttrNoRelation(Map<String, Object> params, Long attrgroupId);
 }
 
