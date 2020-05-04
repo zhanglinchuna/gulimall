@@ -2,7 +2,7 @@ spring:
   datasource:
     username: root
     password: root
-    url: jdbc:mysql://192.168.60.20:3306/gulimall_wms
+    url: jdbc:mysql://192.168.60.20:3306/gulimall_wms?useUnicode=true&characterEncoding=UTF-8
     driver-class-name: com.mysql.jdbc.Driver
   cloud:
     nacos:
@@ -10,6 +10,8 @@ spring:
         server-addr: 127.0.0.1:8848
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
+  application:
+    name: gulimall-ware
 
 
 mybatis-plus:
