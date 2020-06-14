@@ -1,6 +1,7 @@
 package com.atguigu.gulimall.product.service.impl;
 
 import com.atguigu.gulimall.product.service.CategoryBrandRelationService;
+import com.atguigu.gulimall.product.vo.Catelog2Vo;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -105,5 +107,48 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
             findParentPath(categoryEntity.getParentCid(),catelogIds);
         }
         return catelogIds;
+    }
+
+    @Override
+    public List<CategoryEntity> getLevel1Categorys() {
+        return this.baseMapper.selectList(new QueryWrapper<CategoryEntity>().eq("parent_cid", 0L));
+    }
+
+    @Override
+    public Map<Long, List<Catelog2Vo>> getCatelogJson() {
+
+        List<CategoryEntity> categoryEntityList = this.baseMapper.selectList(null);
+
+        // 1. 先查出所有一级分类
+        List<CategoryEntity> level1Categorys = getParent_cid(categoryEntityList, 0L);
+
+        Map<Long, List<Catelog2Vo>> collect = level1Categorys.stream().collect(Collectors.toMap(k -> k.getCatId(), v -> {
+            // 查找所有二级分类
+            List<CategoryEntity> category2Entities = getParent_cid(categoryEntityList, v.getCatId());
+            List<Catelog2Vo> catelog2 = null;
+            if (null != category2Entities) {
+                catelog2 = category2Entities.stream().map(item -> {
+                    Catelog2Vo catelog2Vo = new Catelog2Vo(v.getCatId(), null, item.getCatId(), item.getName());
+                    List<CategoryEntity> category3Entities = getParent_cid(categoryEntityList, item.getCatId());
+                    List<Catelog2Vo.Catelog3Vo> catelog3 = null;
+                    // 查找所有三级分类
+                    if (null != category3Entities) {
+                        catelog3 = category3Entities.stream().map(category -> {
+                            Catelog2Vo.Catelog3Vo catelog3Vo = new Catelog2Vo.Catelog3Vo(item.getCatId(), category.getCatId(), category.getName());
+                            return catelog3Vo;
+                        }).collect(Collectors.toList());
+                    }
+                    catelog2Vo.setCatalog3List(catelog3);
+                    return catelog2Vo;
+                }).collect(Collectors.toList());
+
+            }
+            return catelog2;
+        }));
+        return collect;
+    }
+
+    private List<CategoryEntity> getParent_cid(List<CategoryEntity> categoryEntityList, Long catId) {
+        return categoryEntityList.stream().filter(item -> item.getParentCid() == catId).collect(Collectors.toList());
     }
 }
