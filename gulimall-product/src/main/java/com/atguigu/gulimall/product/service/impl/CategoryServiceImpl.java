@@ -1,15 +1,17 @@
 package com.atguigu.gulimall.product.service.impl;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.TypeReference;
 import com.atguigu.gulimall.product.service.CategoryBrandRelationService;
 import com.atguigu.gulimall.product.vo.Catelog2Vo;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -30,6 +32,8 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
 
     @Autowired
     private CategoryBrandRelationService relationService;
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
@@ -95,8 +99,8 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
     @Override
     public void updateDetail(CategoryEntity categoryEntity) {
         this.updateById(categoryEntity);
-        if (StringUtils.isNotEmpty(categoryEntity.getName())){
-            relationService.updateByCategoryDetail(categoryEntity.getCatId(),categoryEntity.getName());
+        if (StringUtils.isNotEmpty(categoryEntity.getName())) {
+            relationService.updateByCategoryDetail(categoryEntity.getCatId(), categoryEntity.getName());
         }
     }
 
@@ -104,7 +108,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         catelogIds.add(catelogId);
         CategoryEntity categoryEntity = this.getById(catelogId);
         if (categoryEntity.getParentCid() != 0) {
-            findParentPath(categoryEntity.getParentCid(),catelogIds);
+            findParentPath(categoryEntity.getParentCid(), catelogIds);
         }
         return catelogIds;
     }
@@ -117,11 +121,95 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
     @Override
     public Map<Long, List<Catelog2Vo>> getCatelogJson() {
 
-        List<CategoryEntity> categoryEntityList = this.baseMapper.selectList(null);
+        /**
+         *  缓存三大问题：
+         *  1、缓存穿透：重复查询一个不存在key的数据，缓存中获取不到，总是查询数据库
+         *      解决办法：将数据库中查询到的null值结果，存放到缓存中(key -> null)，设置较短的失效时间
+         *
+         *  2、缓存雪崩：缓存中所有数据都在同一时刻失效，大量查询请求发送给数据库，导致数据库服务崩溃
+         *      解决办法：设置缓存失效时间时，加个随机值
+         *
+         *  3、缓存击穿：缓存中一个热点数据失效，大量查询请求发送给数据库，导致数据库服务崩溃
+         *      解决办法：加锁，当第一次查询从缓存中获取不到数据时，在去查询数据库，查询数据的方法上
+         *      加锁，当第一次的查询结果查到数据后放入到缓存中，后面的查询在去缓存中获取数据
+         */
 
+        // 1. 先从缓存中获取数据
+        String catelogJson = redisTemplate.opsForValue().get("catelogJson");
+        // 2. 如果缓存没有数据，再去查数据库
+        if (StringUtils.isEmpty(catelogJson)) {
+            Map<Long, List<Catelog2Vo>> catelog = getCatelogJsonFormDbWithRedisLock();
+            return catelog;
+        }
+
+        // JSON.parseObject(String text, TypeReference<T> type) 将json字符串转成指定复杂类型对象
+        return JSON.parseObject(catelogJson, new TypeReference<Map<Long, List<Catelog2Vo>>>() {
+        });
+    }
+
+    /**
+     * 本地锁
+     *
+     * @return
+     */
+    public Map<Long, List<Catelog2Vo>> getCatelogJsonFormDbWithLocalLock() {
+        // springboot中所有组件都是单实例的
+        // TODO 使用本地锁；分布式情况下无法锁住所有请求
+        synchronized (this) {
+            return getCatelogJsonFormDb();
+        }
+    }
+
+    /**
+     * 分布式锁
+     *
+     * @return
+     */
+    public Map<Long, List<Catelog2Vo>> getCatelogJsonFormDbWithRedisLock() {
+
+        String uuid = UUID.randomUUID().toString();
+        // 分布式锁的原理：利用redis的 set key value EX NX 命令只允许一个客户端设置相同的key值（EX:设置键key的过期时间,NX:只有键key不存在的时候才会设置key的值）
+        // 需要设置key的失效时间，否则可能系统故障无法删除key值为lock数据，导致死锁的问题发生
+        Boolean bool = redisTemplate.opsForValue().setIfAbsent("lock", uuid, 300, TimeUnit.SECONDS);
+        if (bool) {
+            // 成功获取锁
+            Map<Long, List<Catelog2Vo>> map;
+            try {
+                map = getCatelogJsonFormDb();
+            } finally {
+                // 释放锁
+                /*if (redisTemplate.opsForValue().get("lock").equals(uuid)) {
+                    // 删除自己的锁
+                    redisTemplate.delete("lock");
+                }*/
+                // 比对自己锁的值是否相等，相等则为自己的锁，比对锁的值 和 删除锁 必须为原子操作
+                String script = "if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end";
+                redisTemplate.execute(new DefaultRedisScript<Long>(script, long.class), Arrays.asList("lock"), uuid);
+            }
+            return map;
+        }else {
+            // 获取锁失败，重新回调方法进行重试
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return getCatelogJsonFormDbWithRedisLock();
+        }
+    }
+
+    private Map<Long, List<Catelog2Vo>> getCatelogJsonFormDb() {
+
+        // 查数据库之前，在去从缓存中获取一遍数据，缓存中有数据就直接返回，没有数据就在查数据库
+        String catelogJson = redisTemplate.opsForValue().get("catelogJson");
+        if (!StringUtils.isEmpty(catelogJson)) {
+            return JSON.parseObject(catelogJson, new TypeReference<Map<Long, List<Catelog2Vo>>>() {
+            });
+        }
+
+        List<CategoryEntity> categoryEntityList = this.baseMapper.selectList(null);
         // 1. 先查出所有一级分类
         List<CategoryEntity> level1Categorys = getParent_cid(categoryEntityList, 0L);
-
         Map<Long, List<Catelog2Vo>> collect = level1Categorys.stream().collect(Collectors.toMap(k -> k.getCatId(), v -> {
             // 查找所有二级分类
             List<CategoryEntity> category2Entities = getParent_cid(categoryEntityList, v.getCatId());
@@ -145,6 +233,8 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
             }
             return catelog2;
         }));
+        // 3. 将查询到的数据放入缓存中
+        redisTemplate.opsForValue().set("catelogJson", JSON.toJSONString(collect), 1, TimeUnit.DAYS);
         return collect;
     }
 
