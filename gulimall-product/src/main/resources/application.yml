@@ -30,3 +30,6 @@ server:
 logging:
   level:
     com.atguigu.gulimall: debug
+
+redisson:
+  address: redis://192.168.60.20:6379

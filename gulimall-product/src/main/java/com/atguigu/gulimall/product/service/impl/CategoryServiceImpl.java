@@ -5,6 +5,8 @@ import com.alibaba.fastjson.TypeReference;
 import com.atguigu.gulimall.product.service.CategoryBrandRelationService;
 import com.atguigu.gulimall.product.vo.Catelog2Vo;
 import org.apache.commons.lang.StringUtils;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -34,6 +36,8 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
     private CategoryBrandRelationService relationService;
     @Autowired
     private StringRedisTemplate redisTemplate;
+    @Autowired
+    private RedissonClient redisson;
 
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
@@ -138,7 +142,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         String catelogJson = redisTemplate.opsForValue().get("catelogJson");
         // 2. 如果缓存没有数据，再去查数据库
         if (StringUtils.isEmpty(catelogJson)) {
-            Map<Long, List<Catelog2Vo>> catelog = getCatelogJsonFormDbWithRedisLock();
+            Map<Long, List<Catelog2Vo>> catelog = getCatelogJsonFormDbWithRedissonLock();
             return catelog;
         }
 
@@ -160,6 +164,18 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         }
     }
 
+    public Map<Long, List<Catelog2Vo>> getCatelogJsonFormDbWithRedissonLock() {
+
+        RLock lock = redisson.getLock("catelogJson-lock");
+        lock.lock();
+        Map<Long, List<Catelog2Vo>> map;
+        try {
+            map = getCatelogJsonFormDb();
+        } finally {
+            lock.unlock();
+        }
+        return map;
+    }
     /**
      * 分布式锁
      *
