@@ -8,6 +8,9 @@ import org.apache.commons.lang.StringUtils;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -99,6 +102,17 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         return parentPath.toArray(new Long[parentPath.size()]);
     }
 
+    /**
+     * 修改 菜单分类
+     *
+     * @param categoryEntity
+     */
+
+    /*@Caching(evict = {
+            @CacheEvict(value = {"category"}, key = "'getLevel1Categorys'"),
+            @CacheEvict(value = {"category"}, key = "'getCatelogJsonFormDb'")
+    })  // 同时删除 一级分类 和 三级分类 的缓存*/
+    @CacheEvict(value = {"category"}, allEntries = true)    // 删除 category 分区下所有缓存
     @Transactional
     @Override
     public void updateDetail(CategoryEntity categoryEntity) {
@@ -117,13 +131,13 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         return catelogIds;
     }
 
+    @Cacheable(value = {"category"},key = "#root.method.name",sync = true)  // 将查询到的 一级分类 放入缓存中
     @Override
     public List<CategoryEntity> getLevel1Categorys() {
         return this.baseMapper.selectList(new QueryWrapper<CategoryEntity>().eq("parent_cid", 0L));
     }
 
-    @Override
-    public Map<Long, List<Catelog2Vo>> getCatelogJson() {
+    public Map<Long, List<Catelog2Vo>> getCatelogJsonLock() {
 
         /**
          *  缓存三大问题：
@@ -149,6 +163,38 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         // JSON.parseObject(String text, TypeReference<T> type) 将json字符串转成指定复杂类型对象
         return JSON.parseObject(catelogJson, new TypeReference<Map<Long, List<Catelog2Vo>>>() {
         });
+    }
+
+    @Cacheable(value = {"category"},key = "#root.methodName",sync = true)
+    @Override
+    public Map<Long, List<Catelog2Vo>> getCatelogJson() {
+        List<CategoryEntity> categoryEntityList = this.baseMapper.selectList(null);
+        // 1. 先查出所有一级分类
+        List<CategoryEntity> level1Categorys = getParent_cid(categoryEntityList, 0L);
+        Map<Long, List<Catelog2Vo>> collect = level1Categorys.stream().collect(Collectors.toMap(k -> k.getCatId(), v -> {
+            // 查找所有二级分类
+            List<CategoryEntity> category2Entities = getParent_cid(categoryEntityList, v.getCatId());
+            List<Catelog2Vo> catelog2 = null;
+            if (null != category2Entities) {
+                catelog2 = category2Entities.stream().map(item -> {
+                    Catelog2Vo catelog2Vo = new Catelog2Vo(v.getCatId(), null, item.getCatId(), item.getName());
+                    List<CategoryEntity> category3Entities = getParent_cid(categoryEntityList, item.getCatId());
+                    List<Catelog2Vo.Catelog3Vo> catelog3 = null;
+                    // 查找所有三级分类
+                    if (null != category3Entities) {
+                        catelog3 = category3Entities.stream().map(category -> {
+                            Catelog2Vo.Catelog3Vo catelog3Vo = new Catelog2Vo.Catelog3Vo(item.getCatId(), category.getCatId(), category.getName());
+                            return catelog3Vo;
+                        }).collect(Collectors.toList());
+                    }
+                    catelog2Vo.setCatalog3List(catelog3);
+                    return catelog2Vo;
+                }).collect(Collectors.toList());
+
+            }
+            return catelog2;
+        }));
+        return collect;
     }
 
     /**
