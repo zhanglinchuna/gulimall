@@ -1,7 +1,10 @@
 package com.atguigu.gulimall.search.vo;
 
+import lombok.Data;
+
 import java.util.List;
 
+@Data
 public class SearchParam {
 
     // 页面传递过来的全文查询匹配关键字
@@ -20,6 +23,6 @@ public class SearchParam {
     private String skuPrice;//价格区间查询  1_500/_500/500_
     private List<Long> brandId;//按照品牌进行查询，可多选   brandId=1,2,3
     private List<String> attrs;//按照商品属性进行筛选 attrs=2_5存:6寸
-    private Integer pageNum;//分页页数
+    private Integer pageNum = 1;//分页页数
 
 }

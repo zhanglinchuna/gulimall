@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.util.List;
 
+@Data
 public class SearchResult {
 
     // 查询到的所有商品信息
@@ -16,6 +17,7 @@ public class SearchResult {
     private Integer pageNum; // 当前页码
     private Long total; //  总记录数
     private Integer totalPages; // 总页码
+    private List<Integer> pageNavs; //导航页
 
     private List<BrandVo> brands;   // 当前查询到的结果，所有涉及到的品牌
     private List<CatalogVo> catalogs;   // 当前查询到的结果，所有涉及到的所有分类
@@ -29,8 +31,8 @@ public class SearchResult {
     }
     @Data
     public static class CatalogVo {
-        private Long catelogId;
-        private String catelogName;
+        private Long catalogId;
+        private String catalogName;
     }
     @Data
     public static class AttrVo {
