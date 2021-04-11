@@ -1,10 +1,16 @@
 package com.atguigu.gulimall.search.service.impl;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.TypeReference;
 import com.atguigu.common.to.es.SkuEsModel;
+import com.atguigu.common.utils.R;
 import com.atguigu.gulimall.search.config.ElasticSearchConfig;
 import com.atguigu.gulimall.search.constant.EsConstant;
+import com.atguigu.gulimall.search.feign.ProductFeignService;
 import com.atguigu.gulimall.search.service.MallSearchService;
+import com.atguigu.gulimall.search.vo.AttrResponseVo;
+import com.atguigu.gulimall.search.vo.BrandVo;
 import com.atguigu.gulimall.search.vo.SearchParam;
 import com.atguigu.gulimall.search.vo.SearchResult;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +39,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -44,6 +52,8 @@ public class MallSearchServiceImpl implements MallSearchService {
 
     @Autowired
     private RestHighLevelClient esRestClient;
+    @Autowired
+    private ProductFeignService productFeignService;
 
     @Override
     public SearchResult search(SearchParam searchParam) {
@@ -267,33 +277,75 @@ public class MallSearchServiceImpl implements MallSearchService {
         result.setTotal(total);
         //5.分页信息-总页码
         boolean flag = total % EsConstant.PRODUCT_PAGESIZE == 0;
-        int totalPage = flag ? (int) total / EsConstant.PRODUCT_PAGESIZE : ((int) total / EsConstant.PRODUCT_PAGESIZE) + 1;
-        result.setTotalPages(totalPage);
-        ArrayList<Integer> page = new ArrayList<>();
-        for (int i = 1; i <= totalPage; i++) {
-            page.add(i);
+        int totalPages = flag ? (int) total / EsConstant.PRODUCT_PAGESIZE : ((int) total / EsConstant.PRODUCT_PAGESIZE) + 1;
+        result.setTotalPages(totalPages);
+        List<Integer> pageNavs = new ArrayList<>();
+        for (int i = 1; i <= totalPages; i++) {
+            pageNavs.add(i);
         }
-        result.setPageNavs(page);
-//        //构建面包屑导航功能
-//        List<SearchReult.NavVo> navVos = param.getAttrs().stream().map(item -> {
-//            SearchReult.NavVo navVo = new SearchReult.NavVo();
-//            String[] s = item.split("_");
-//            navVo.setNavValue(s[1]);
-//
-//            R info = productFeignService.info(Long.parseLong(s[0]));
-//            if(info.getCode() == 0){
-//                AttrResponseVo data = info.getData("attr", new TypeReference<AttrResponseVo>() {
-//                });
-//                navVo.setNavName(data.getAttrName());
-//            }else {
-//                navVo.setNavName(s[0]);
-//            }
-//
-//            //2.取消了面包屑后，要跳转到什么地方，将请求地址的URL置空
-//            return navVo;
-//        }).collect(Collectors.toList());
-//
-//        result.setNavs(navVos);
+        result.setPageNavs(pageNavs);
+
+       //构建面包屑导航功能
+        if (param.getAttrs() != null && param.getAttrs().size() > 0) {
+            List<SearchResult.NavVo> navVos = param.getAttrs().stream().map(attr -> {
+                SearchResult.NavVo navVo = new SearchResult.NavVo();
+                String[] s = attr.split("_");
+                navVo.setNavValue(s[1]);
+                R r = productFeignService.attrInfo(Long.parseLong(s[0]));
+                result.getAttrIds().add(Long.parseLong(s[0]));
+                if(r.getCode() == 0){
+                    AttrResponseVo data = r.getData("attr", new TypeReference<AttrResponseVo>() {
+                    });
+                    navVo.setNavName(data.getAttrName());
+                }else {
+                    navVo.setNavName(s[0]);
+                }
+                //2.取消了面包屑后，要跳转到什么地方，将请求地址的URL置空
+                String queryParam = replaceQueryString(param, attr, "attrs");
+                navVo.setLink("http://search.gulimall.com/list.html?" + queryParam);
+                return navVo;
+            }).collect(Collectors.toList());
+            result.setNavs(navVos);
+        }
+
+        // 品牌
+        if (param.getBrandId() != null && param.getBrandId().size() > 0) {
+            List<SearchResult.NavVo> navs = result.getNavs();
+            SearchResult.NavVo navVo = new SearchResult.NavVo();
+            navVo.setNavName("品牌");
+            R r = productFeignService.brandInfo(param.getBrandId());
+            if (r.getCode() == 0) {
+                List<JSONObject> brand = r.getData("brand", new TypeReference<ArrayList>() {
+                });
+                StringBuffer sb = new StringBuffer();
+                String queryParam = "";
+                for (JSONObject b : brand) {
+                    sb.append(b.get("name").toString() + ";");
+                    queryParam = replaceQueryString(param, b.get("brandId").toString(), "brandId");
+                }
+                navVo.setNavValue(sb.toString());
+                navVo.setLink("http://search.gulimall.com/list.html?" + queryParam);
+            }
+            navs.add(navVo);
+        }
+        // TODO 分类
         return result;
+    }
+
+    private String replaceQueryString(SearchParam param, String s, String key) {
+        String encode = null;
+        try {
+            encode = URLEncoder.encode(s, "UTF-8");
+            encode = encode.replace("+", "%20"); // 浏览器特殊字符处理
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        if (param.get_queryString().indexOf("&") != -1) {
+            String queryParam = param.get_queryString().replace("&" + key + "=" + encode, "");
+            return queryParam;
+        }else {
+            String queryParam = param.get_queryString().replace(key + "=" + encode, "");
+            return queryParam;
+        }
     }
 }
