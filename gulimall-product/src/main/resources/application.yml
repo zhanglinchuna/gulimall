@@ -38,3 +38,9 @@ logging:
 
 redisson:
   address: redis://192.168.60.20:6379
+
+gulimall:
+  thread:
+    coreSize: 20
+    maxSize: 200
+    keepAliveTime: 10
