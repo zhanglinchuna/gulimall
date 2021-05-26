@@ -1,0 +1,37 @@
+docker run -p 3306:3306 --name mysql --privileged=true 
+-v /mydata/mysql/log:/var/log/mysql 
+-v /mydata/mysql/data:/var/lib/mysql 
+-v  /mydata/mysql/conf:/etc/mysql 
+-e MYSQL_ROOT_PASSWORD=root 
+-d mysql:5.7
+
+
+
+docker run -p 6379:6379 --name redis --privileged=true 
+-v /mydata/redis/data:/data 
+-v /mydata/redis/conf/redis.conf:/etc/redis/redis.conf  
+-d redis redis-server /etc/redis/redis.conf
+
+
+
+docker run --name elasticsearch --privileged=true -p 9200:9200 -p 9300:9300 \
+-e "discovery.type=single-node" \
+-e ES_JAVA_OPTS="-Xms64m -Xmx512m" \
+-v /mydata/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml \
+-v /mydata/elasticsearch/data:/usr/share/elasticsearch/data \
+-v /mydata/elasticsearch/plugins:/usr/share/elasticsearch/plugins \
+-d elasticsearch:7.4.2
+
+docker update elasticsearch --restart=always
+
+
+
+docker run --name kibana --privileged=true -e ELASTICSEARCH_HOSTS=http://192.168.60.20:9200 -p 5601:5601 -d kibana:7.4.2
+
+
+
+docker run -p 80:80 --name nginx \
+-v /mydata/nginx/html:/usr/share/nginx/html \
+-v /mydata/nginx/logs:/var/log/nginx \
+-v /mydata/nginx/conf:/etc/nginx --privileged=true \
+-d nginx:1.10
